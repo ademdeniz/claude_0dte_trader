@@ -1,4 +1,6 @@
 trades.db
+trades.db-shm
+trades.db-wal
 __pycache__/
 *.pyc
 *.pyo
