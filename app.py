@@ -217,16 +217,23 @@ def display_dashboard():
         """).fetchall()
 
     if recent_trades:
-        trades_df = pd.DataFrame(recent_trades)
-        trades_df['traded_at'] = pd.to_datetime(trades_df['traded_at'])
-        trades_df['P&L %'] = trades_df['profit_loss_pct'].fillna('Open').apply(
-            lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x
-        )
+        try:
+            trades_df = pd.DataFrame(recent_trades)
+            if not trades_df.empty and 'traded_at' in trades_df.columns:
+                trades_df['traded_at'] = pd.to_datetime(trades_df['traded_at'])
+                trades_df['P&L %'] = trades_df['profit_loss_pct'].fillna('Open').apply(
+                    lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x
+                )
 
-        st.dataframe(
-            trades_df[['ticker', 'direction', 'entry_price', 'P&L %', 'traded_at']],
-            use_container_width=True
-        )
+                st.dataframe(
+                    trades_df[['ticker', 'direction', 'entry_price', 'P&L %', 'traded_at']],
+                    use_container_width=True
+                )
+            else:
+                st.write("No trade data available.")
+        except Exception as e:
+            st.error(f"Error loading trades: {str(e)}")
+            st.write("Raw trade data:", recent_trades)
     else:
         st.write("No trades yet today. Start with morning prep!")
 
