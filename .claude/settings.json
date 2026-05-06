@@ -1,0 +1,27 @@
+{
+  "projectName": "0DTE Trading System",
+  "description": "AI-assisted 0DTE options trading with Bill Fanter's 8-confirmation framework",
+  "model": "claude-sonnet-4-20250514",
+  "hooks": {
+    "enabled": true,
+    "PreToolUse": true,
+    "PostToolUse": true,
+    "SessionStart": true,
+    "Stop": true
+  },
+  "skills": {
+    "autoInvoke": true,
+    "matchThreshold": 0.7
+  },
+  "subagents": {
+    "enabled": true,
+    "maxConcurrent": 3
+  },
+  "context": {
+    "alwaysInclude": [
+      "CLAUDE.md",
+      "docs/trading-strategy.md",
+      "docs/risk-management.md"
+    ]
+  }
+}
