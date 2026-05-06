@@ -1,4 +1,4 @@
-# Copyright 2025 Adem Garic. All rights reserved.
+# Copyright 2026 Adem Garic. All rights reserved.
 
 import sqlite3
 import json

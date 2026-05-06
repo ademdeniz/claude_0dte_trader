@@ -1,4 +1,4 @@
-# Copyright 2025 Adem Garic. All rights reserved.
+# Copyright 2026 Adem Garic. All rights reserved.
 
 from dataclasses import dataclass, field
 from typing import Optional
