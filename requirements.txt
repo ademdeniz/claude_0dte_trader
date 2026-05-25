@@ -24,6 +24,11 @@ pytest-cov>=4.1.0
 streamlit>=1.28.0
 plotly>=5.15.0
 
+# Web scraping and news APIs (for AI features)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+python-dotenv>=1.0.0
+
 # Development tools
 black>=23.0.0
 flake8>=6.0.0
