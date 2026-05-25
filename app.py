@@ -33,6 +33,11 @@ from core.confluence import (
 )
 from core.indicators import calculate_vwap, calculate_ema, get_current_market_snapshot
 
+# AI components (imported as needed in functions to avoid circular imports)
+# from ai.client import get_ai_client, TaskType
+# from ai.cache import get_ai_cache
+# from ai.prompts.pre_market_prompt import PRE_MARKET_SYSTEM_PROMPT, get_pre_market_dynamic_prompt, PRE_MARKET_FALLBACK
+
 # Page configuration
 st.set_page_config(
     page_title="0DTE Trading System",
@@ -238,10 +243,20 @@ def display_dashboard():
         st.write("No trades yet today. Start with morning prep!")
 
 def display_morning_prep():
-    """Morning preparation page"""
-    st.header("🌅 Morning Preparation")
+    """Enhanced Morning preparation page with AI-powered briefings"""
+    st.header("🌅 Pre-Market Intelligence")
 
-    st.write("Calculate key levels and complete pre-market checklist before trading.")
+    # Import AI components
+    from ai.client import get_ai_client, TaskType
+    from ai.cache import get_ai_cache
+    from ai.prompts.pre_market_prompt import PRE_MARKET_SYSTEM_PROMPT, get_pre_market_dynamic_prompt, PRE_MARKET_FALLBACK
+
+    ai_client = get_ai_client()
+    ai_cache = get_ai_cache()
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    # === SECTION 1: EXISTING MORNING PREP ===
+    st.subheader("📊 Key Levels & Checklist")
 
     # Check if already completed today
     today_checklist = get_checklist_today()
@@ -249,43 +264,46 @@ def display_morning_prep():
     if today_checklist and today_checklist['completed']:
         st.success("✅ Morning prep already completed for today!")
 
-        # Display current levels
+        # Display current levels in enhanced format
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("📊 Key Levels")
+            st.markdown("### 📊 SPY Key Levels")
             if today_checklist['pdh']:
-                st.write(f"**PDH (Prior Day High):** ${today_checklist['pdh']:.2f}")
+                st.metric("PDH (Prior Day High)", f"${today_checklist['pdh']:.2f}")
             if today_checklist['pdl']:
-                st.write(f"**PDL (Prior Day Low):** ${today_checklist['pdl']:.2f}")
+                st.metric("PDL (Prior Day Low)", f"${today_checklist['pdl']:.2f}")
             if today_checklist['pdc']:
-                st.write(f"**PDC (Prior Day Close):** ${today_checklist['pdc']:.2f}")
+                st.metric("PDC (Prior Day Close)", f"${today_checklist['pdc']:.2f}")
             if today_checklist['vwap']:
-                st.write(f"**VWAP:** ${today_checklist['vwap']:.2f}")
+                st.metric("VWAP", f"${today_checklist['vwap']:.2f}")
 
         with col2:
-            st.subheader("📈 Market Bias")
+            st.markdown("### 📈 Market Setup")
             if today_checklist['spy_bias']:
-                st.write(f"**SPY Bias:** {today_checklist['spy_bias']}")
+                bias_color = "🟢" if today_checklist['spy_bias'] == "BULLISH" else "🔴" if today_checklist['spy_bias'] == "BEARISH" else "🟡"
+                st.metric("SPY Bias", f"{bias_color} {today_checklist['spy_bias']}")
             if today_checklist['vix_level']:
-                st.write(f"**VIX Level:** {today_checklist['vix_level']:.2f}")
+                st.metric("VIX Level", f"{today_checklist['vix_level']:.2f}")
 
     else:
-        st.warning("⚠️ Morning prep not completed yet.")
+        st.warning("⚠️ Complete morning prep to unlock AI briefing")
 
-        # Manual input form
+        # Enhanced manual input form
         with st.form("morning_prep_form"):
             st.subheader("📊 Enter Key Levels")
 
             col1, col2 = st.columns(2)
 
             with col1:
+                st.markdown("**SPY Levels**")
                 pdh = st.number_input("Prior Day High (PDH)", value=503.50, step=0.01)
                 pdl = st.number_input("Prior Day Low (PDL)", value=499.80, step=0.01)
                 pdc = st.number_input("Prior Day Close (PDC)", value=501.20, step=0.01)
                 vwap = st.number_input("VWAP", value=501.80, step=0.01)
 
             with col2:
+                st.markdown("**Market Context**")
                 spy_bias = st.selectbox("SPY Bias", ["BULLISH", "BEARISH", "NEUTRAL"])
                 vix_level = st.number_input("VIX Level", value=15.5, step=0.1)
                 news_events = st.text_area("News Events", placeholder="FOMC, CPI, earnings, etc.")
@@ -309,6 +327,238 @@ def display_morning_prep():
                 save_checklist(checklist)
                 st.success("✅ Morning prep completed! You can now start trading.")
                 st.rerun()
+
+    # === SECTION 2: AI PRE-MARKET BRIEFING ===
+    if today_checklist and today_checklist['completed']:
+        st.markdown("---")
+        st.subheader("🤖 AI Pre-Market Briefing")
+
+        # Check if briefing already cached for today
+        cached_briefing = ai_cache.get_daily_briefing(today)
+
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            if cached_briefing:
+                # Display cached briefing
+                age_hours = (datetime.now() - datetime.fromisoformat(cached_briefing["created_at"])).total_seconds() / 3600
+                if age_hours < 8:
+                    st.success(f"📄 Briefing generated {age_hours:.1f} hours ago (cached)")
+                else:
+                    st.warning(f"⚠️ Briefing is {age_hours:.1f} hours old - consider refreshing")
+
+        with col2:
+            # Button to generate/refresh briefing
+            if st.button("🔄 Generate Today's Briefing", help="Costs ~$0.08-0.12 per briefing"):
+                with st.spinner("Generating AI briefing..."):
+                    try:
+                        # Prepare market data
+                        market_data = {
+                            'spy': {
+                                'pdh': today_checklist['pdh'],
+                                'pdl': today_checklist['pdl'],
+                                'pdc': today_checklist['pdc']
+                            },
+                            'vix': today_checklist.get('vix_level', 0)
+                        }
+
+                        # Sample news events (in production, this would fetch real news)
+                        news_events = [
+                            "Market futures mixed in pre-market trading",
+                            "No major economic events scheduled today",
+                            "Options flow showing elevated put activity"
+                        ]
+
+                        # Generate briefing using cached AI
+                        dynamic_prompt = get_pre_market_dynamic_prompt(today, market_data, news_events)
+
+                        response, usage = ai_client.create_cached_message(
+                            cached_prompt=PRE_MARKET_SYSTEM_PROMPT,
+                            dynamic_content=dynamic_prompt,
+                            task_type=TaskType.PRE_MARKET_BRIEFING,
+                            max_tokens=2000,
+                            fallback_response=PRE_MARKET_FALLBACK
+                        )
+
+                        # Cache the result
+                        if response.get('market_bias'):
+                            ai_cache.cache_daily_briefing(
+                                today,
+                                response,
+                                usage.get('total_tokens', 0),
+                                usage.get('cost_usd', 0)
+                            )
+
+                            # Update cache reference
+                            cached_briefing = {
+                                "content": response,
+                                "tokens_used": usage.get('total_tokens', 0),
+                                "cost_usd": usage.get('cost_usd', 0),
+                                "created_at": datetime.now().isoformat(),
+                                "cached": False
+                            }
+
+                            st.success(f"✅ Briefing generated! Used {usage.get('total_tokens', 0)} tokens (${usage.get('cost_usd', 0):.3f})")
+                        else:
+                            st.error("❌ Failed to generate briefing - using fallback")
+
+                    except Exception as e:
+                        st.error(f"❌ Briefing generation failed: {str(e)}")
+
+        # Display briefing if available
+        if cached_briefing and cached_briefing.get('content'):
+            briefing = cached_briefing['content']
+
+            # Market bias display
+            if briefing.get('market_bias'):
+                bias = briefing['market_bias']
+                bias_color = "🟢" if bias == "BULLISH" else "🔴" if bias == "BEARISH" else "🟡"
+                confidence = briefing.get('confidence_level', 5)
+
+                st.markdown(f"### {bias_color} Market Bias: **{bias}** (Confidence: {confidence}/10)")
+
+            # Summary
+            if briefing.get('summary'):
+                st.info(f"**Today's Outlook:** {briefing['summary']}")
+
+            # Key levels and details in columns
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Risk factors
+                if briefing.get('risk_factors'):
+                    st.markdown("**⚠️ Risk Factors:**")
+                    for risk in briefing['risk_factors'][:3]:
+                        st.write(f"• {risk}")
+
+                # Time of day notes
+                if briefing.get('time_of_day_notes'):
+                    st.markdown(f"**⏰ Timing Notes:** {briefing['time_of_day_notes']}")
+
+            with col2:
+                # Opportunities
+                if briefing.get('opportunities'):
+                    st.markdown("**🎯 Opportunities:**")
+                    for opp in briefing['opportunities'][:3]:
+                        st.write(f"• {opp}")
+
+                # Token usage display
+                tokens_used = cached_briefing.get('tokens_used', 0)
+                cost_usd = cached_briefing.get('cost_usd', 0)
+                if tokens_used > 0:
+                    st.caption(f"💰 Used {tokens_used:,} tokens (${cost_usd:.3f})")
+
+        # === SECTION 3: WATCHLIST WITH DISTANCES ===
+        st.markdown("---")
+        st.subheader("📋 Watchlist & Key Distances")
+
+        # Create watchlist data
+        watchlist_symbols = ["SPY", "QQQ", "AAPL", "NVDA", "TSLA", "MSFT", "GOOGL"]
+
+        # Sample current prices (in production, fetch from API)
+        sample_prices = {
+            "SPY": today_checklist['pdc'] + np.random.uniform(-2, 2),
+            "QQQ": 380 + np.random.uniform(-3, 3),
+            "AAPL": 175 + np.random.uniform(-2, 2),
+            "NVDA": 880 + np.random.uniform(-10, 10),
+            "TSLA": 250 + np.random.uniform(-5, 5),
+            "MSFT": 420 + np.random.uniform(-3, 3),
+            "GOOGL": 140 + np.random.uniform(-2, 2)
+        }
+
+        # Display watchlist table
+        watchlist_data = []
+        for symbol in watchlist_symbols:
+            current_price = sample_prices.get(symbol, 100)
+            if symbol == "SPY":
+                pdc = today_checklist['pdc']
+                distance_pct = ((current_price - pdc) / pdc) * 100
+                distance_color = "🟢" if distance_pct > 0 else "🔴" if distance_pct < 0 else "🟡"
+            else:
+                # Use sample PDC for other symbols
+                sample_pdc = current_price * (1 + np.random.uniform(-0.02, 0.02))
+                distance_pct = ((current_price - sample_pdc) / sample_pdc) * 100
+                distance_color = "🟢" if distance_pct > 0 else "🔴" if distance_pct < 0 else "🟡"
+
+            watchlist_data.append({
+                "Symbol": symbol,
+                "Current": f"${current_price:.2f}",
+                "vs PDC": f"{distance_color} {distance_pct:+.1f}%",
+                "Status": "Above PDC" if distance_pct > 0 else "Below PDC" if distance_pct < 0 else "At PDC"
+            })
+
+        # Display as DataFrame
+        watchlist_df = pd.DataFrame(watchlist_data)
+        st.dataframe(watchlist_df, use_container_width=True)
+
+        # === SECTION 4: TODAY'S TRADING PLAN ===
+        st.markdown("---")
+        st.subheader("📝 Today's Trading Plan")
+
+        # Load existing plan or create new
+        plan_key = f"trading_plan_{today}"
+        if plan_key not in st.session_state:
+            st.session_state[plan_key] = {
+                "thesis": "",
+                "levels_to_watch": "",
+                "max_trades": 3,
+                "news_risks": ""
+            }
+
+        with st.form("trading_plan_form"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                thesis = st.text_area(
+                    "Trade Thesis for Today",
+                    value=st.session_state[plan_key]["thesis"],
+                    placeholder="What's my directional bias and why?",
+                    height=100
+                )
+
+                levels_to_watch = st.text_area(
+                    "Key Levels to Watch",
+                    value=st.session_state[plan_key]["levels_to_watch"],
+                    placeholder="Support/resistance levels, breakout points",
+                    height=100
+                )
+
+            with col2:
+                max_trades = st.selectbox(
+                    "Max Trades Planned Today",
+                    [1, 2, 3],
+                    index=[1, 2, 3].index(st.session_state[plan_key]["max_trades"])
+                )
+
+                news_risks = st.text_area(
+                    "News Risks to Monitor",
+                    value=st.session_state[plan_key]["news_risks"],
+                    placeholder="Fed speakers, earnings, economic data",
+                    height=100
+                )
+
+            if st.form_submit_button("💾 Save Today's Plan"):
+                st.session_state[plan_key] = {
+                    "thesis": thesis,
+                    "levels_to_watch": levels_to_watch,
+                    "max_trades": max_trades,
+                    "news_risks": news_risks
+                }
+                st.success("✅ Trading plan saved!")
+
+        # Display current plan summary
+        if st.session_state[plan_key]["thesis"]:
+            st.info(f"**Today's Thesis:** {st.session_state[plan_key]['thesis']}")
+
+        if st.session_state[plan_key]["levels_to_watch"]:
+            st.info(f"**Watching:** {st.session_state[plan_key]['levels_to_watch']}")
+
+    else:
+        # Show teaser for AI features
+        st.markdown("---")
+        st.info("🔒 **Complete morning prep to unlock:**\n- 🤖 AI Pre-Market Briefing\n- 📋 Enhanced Watchlist\n- 📝 Daily Trading Plan")
+
+def get_sample_market_data(symbol: str) -> MarketData:
 
 def display_trade_entry():
     """Trade entry page with 8-confirmation validation"""
