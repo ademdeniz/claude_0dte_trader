@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(project_root, 'src'))
 
 from persistence.database import save_checklist
 from persistence.models import PreMarketChecklist
+from utils.model_selector import get_optimal_model
 
 # Initialize Anthropic client
 def get_anthropic_client():
@@ -122,6 +123,10 @@ def run_cached_morning_prep(symbol: str = "SPY") -> Dict:
         client = get_anthropic_client()
         today = datetime.now().strftime('%Y-%m-%d')
 
+        # Get optimal model for morning prep (Haiku for 70% cost reduction)
+        optimal_model = get_optimal_model("morning-prep")
+        print(f"🤖 Using {optimal_model} for morning prep analysis")
+
         # Create messages with cache_control
         messages = [
             {
@@ -143,7 +148,7 @@ def run_cached_morning_prep(symbol: str = "SPY") -> Dict:
 
         # Make cached API call
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=optimal_model,
             max_tokens=2000,
             messages=messages,
             temperature=0.1  # Low temperature for consistent calculations

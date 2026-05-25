@@ -12,6 +12,7 @@ Calculate prior day levels using cached Anthropic API calls to reduce token cons
 
 This skill now uses a cached Python implementation that:
 - ✅ **Caches system prompts** with `cache_control` markers
+- ✅ **Uses Claude Haiku** for 70% cost reduction (simple data formatting)
 - ✅ **Reduces token usage by 70-80%** after first call
 - ✅ **Returns structured JSON** instead of prose
 - ✅ **Pre-validates data** in Python before AI calls

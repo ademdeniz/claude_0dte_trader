@@ -12,6 +12,7 @@ Validate trades against 8-confirmation framework using cached Anthropic API call
 
 This skill now uses a cached Python implementation that:
 - ✅ **Caches 8-confirmation framework** with `cache_control` markers
+- ✅ **Uses Claude Sonnet** for complex judgment tasks
 - ✅ **Pre-checks discipline rules** in Python (no AI needed)
 - ✅ **Reduces token usage by 70-80%** after first call
 - ✅ **Returns structured JSON** instead of prose

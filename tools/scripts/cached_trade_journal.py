@@ -30,6 +30,7 @@ from persistence.database import (
 )
 from persistence.models import Trade
 from core.confluence import ConfluenceValidator, MarketData, LevelData, Direction
+from utils.model_selector import get_optimal_model
 
 # Initialize Anthropic client
 def get_anthropic_client():
@@ -277,6 +278,10 @@ def validate_trade_with_cache(
         # Make cached API call
         client = get_anthropic_client()
 
+        # Get optimal model for trade validation (Sonnet for complex judgment)
+        optimal_model = get_optimal_model("trade-journal")
+        print(f"🤖 Using {optimal_model} for trade validation")
+
         messages = [
             {
                 "role": "user",
@@ -296,7 +301,7 @@ def validate_trade_with_cache(
         ]
 
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=optimal_model,
             max_tokens=3000,
             messages=messages,
             temperature=0.1
