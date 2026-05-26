@@ -33,6 +33,7 @@ class TaskType(Enum):
     STRATEGY_VARIATION = "strategy-variation"
     EDUCATION = "education"
     DAILY_BIAS = "daily-bias"
+    CHART_ANALYSIS = "chart-analysis"
 
 class AIClient:
     """Unified AI client with caching and cost tracking"""
@@ -306,6 +307,106 @@ class AIClient:
         except Exception as e:
             print(f"⚠️ Quick analysis failed: {e}")
             return fallback, {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "model": model, "error": str(e)}
+
+    def create_message_with_image(
+        self,
+        prompt: str,
+        image_data: bytes,
+        task_type: TaskType,
+        max_tokens: int = 1000,
+        temperature: float = 0.1
+    ) -> Tuple[Dict, Dict]:
+        """
+        Create message with image analysis capability
+
+        Args:
+            prompt: Text prompt for analysis
+            image_data: Raw image bytes
+            task_type: Type of task for model selection
+            max_tokens: Maximum response tokens
+            temperature: Sampling temperature
+
+        Returns:
+            Tuple of (response_dict, usage_stats)
+        """
+
+        if not self.client:
+            return {"error": "AI client not available"}, {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "model": "fallback"}
+
+        model = self.get_optimal_model(task_type)
+
+        try:
+            import base64
+
+            # Convert image to base64
+            image_b64 = base64.b64encode(image_data).decode('utf-8')
+
+            # Create message with image
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": image_b64
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+
+            response = self.client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                messages=messages,
+                temperature=temperature
+            )
+
+            input_tokens = getattr(response.usage, 'input_tokens', 0)
+            output_tokens = getattr(response.usage, 'output_tokens', 0)
+            cost_usd = self.estimate_cost(input_tokens, output_tokens, model)
+
+            usage_stats = {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+                "cost_usd": cost_usd,
+                "model": model,
+                "cached": False,
+                "timestamp": datetime.now().isoformat()
+            }
+
+            # Parse response
+            response_text = response.content[0].text.strip()
+
+            # Try to parse as JSON
+            try:
+                if response_text.startswith('{') and response_text.endswith('}'):
+                    response_dict = json.loads(response_text)
+                elif response_text.startswith('```json'):
+                    json_start = response_text.find('{')
+                    json_end = response_text.rfind('}') + 1
+                    if json_start >= 0 and json_end > json_start:
+                        response_dict = json.loads(response_text[json_start:json_end])
+                    else:
+                        response_dict = {"error": "Could not extract JSON", "raw_response": response_text}
+                else:
+                    response_dict = {"error": "Response not in JSON format", "raw_response": response_text}
+            except json.JSONDecodeError:
+                response_dict = {"error": "Invalid JSON response", "raw_response": response_text}
+
+            return response_dict, usage_stats
+
+        except Exception as e:
+            print(f"⚠️ Image analysis failed: {e}")
+            return {"error": str(e)}, {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "model": model, "error": str(e)}
 
 # Global instance for easy access
 ai_client = AIClient()

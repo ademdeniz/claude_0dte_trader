@@ -32,6 +32,13 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     with get_connection() as conn:
+        # Add ticker column to existing databases if it doesn't exist
+        try:
+            conn.execute("ALTER TABLE pre_market_checklist ADD COLUMN ticker TEXT NOT NULL DEFAULT 'SPY'")
+        except sqlite3.OperationalError:
+            # Column already exists, ignore
+            pass
+
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS trades (
                 id                      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,6 +73,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS pre_market_checklist (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
                 trade_date          TEXT    NOT NULL UNIQUE,
+                ticker              TEXT    NOT NULL DEFAULT 'SPY',
                 pdh                 REAL,
                 pdl                 REAL,
                 pdc                 REAL,
@@ -219,17 +227,17 @@ def save_checklist(checklist: PreMarketChecklist) -> int:
         cur = conn.execute(
             """
             INSERT INTO pre_market_checklist
-                (trade_date, pdh, pdl, pdc, vwap, support_levels, resistance_levels,
+                (trade_date, ticker, pdh, pdl, pdc, vwap, support_levels, resistance_levels,
                  spy_bias, vix_level, news_events, completed, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(trade_date) DO UPDATE SET
-                pdh=excluded.pdh, pdl=excluded.pdl, pdc=excluded.pdc, vwap=excluded.vwap,
+                ticker=excluded.ticker, pdh=excluded.pdh, pdl=excluded.pdl, pdc=excluded.pdc, vwap=excluded.vwap,
                 support_levels=excluded.support_levels, resistance_levels=excluded.resistance_levels,
                 spy_bias=excluded.spy_bias, vix_level=excluded.vix_level,
                 news_events=excluded.news_events, completed=excluded.completed
             """,
             (
-                checklist.trade_date, checklist.pdh, checklist.pdl, checklist.pdc,
+                checklist.trade_date, checklist.ticker, checklist.pdh, checklist.pdl, checklist.pdc,
                 checklist.vwap,
                 json.dumps(checklist.support_levels) if isinstance(checklist.support_levels, list) else checklist.support_levels,
                 json.dumps(checklist.resistance_levels) if isinstance(checklist.resistance_levels, list) else checklist.resistance_levels,

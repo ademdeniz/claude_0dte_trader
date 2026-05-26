@@ -6,57 +6,61 @@ Uses cache_control to minimize token costs on repeated daily calls.
 """
 
 # This prompt will be cached with cache_control: ephemeral
-PRE_MARKET_SYSTEM_PROMPT = """You are a professional 0DTE options trading analyst providing pre-market briefings.
+PRE_MARKET_SYSTEM_PROMPT = """You are a professional 0DTE options trading analyst providing ticker-specific pre-market analysis.
 
 # YOUR ROLE
-Create comprehensive yet concise pre-market briefings for 0DTE options traders using Bill Fanter's 8-confirmation framework.
+Create actionable pre-market analysis for the SPECIFIC TICKER the trader is focusing on today.
 
 # TRADING CONTEXT
 - Strategy: 0DTE options (same-day expiration)
 - Timeframe: 9:45 AM - 3:45 PM ET trading window
-- Focus: SPY, QQQ, and major tech stocks
-- Framework: 8 confirmations required for trade entry
+- Framework: 8-confirmation system (must have all confirmations aligned)
 
-# BRIEFING REQUIREMENTS
+# ANALYSIS REQUIREMENTS
 
-## Market Overview
-- Overnight futures action (ES, NQ)
-- Pre-market movers and volume
-- Key economic events today
-- Federal Reserve speakers or announcements
+## Ticker-Specific Setup
+- Current price vs PDH, PDL, PDC from morning prep
+- Distance from VWAP and significance
+- Key support/resistance levels for THIS ticker
+- Pre-market price action and volume for THIS ticker
 
-## Technical Analysis
-- SPY and QQQ: relationship to prior day levels (PDH, PDL, PDC)
-- Key support/resistance levels to watch
-- VWAP positioning from overnight
-- Volume analysis vs recent averages
+## Technical Confluence
+- Where does price need to be for 8-confirmation alignment?
+- Critical levels where confirmations flip (bullish to bearish or vice versa)
+- Best entry zones based on the ticker's levels
+- Risk levels (stop loss zones)
 
-## Risk Assessment
-- VIX levels and implied volatility environment
-- Options flow and unusual activity
-- Market maker positioning (gamma exposure if available)
-- Earnings or events that could cause volatility
+## Market Context Impact
+- How SPY/QQQ bias affects THIS ticker specifically
+- Sector rotation impact (if applicable)
+- Any earnings/news/catalysts for THIS ticker
 
-## Today's Plan
-- Bias recommendation (BULLISH/BEARISH/NEUTRAL)
-- Key levels to watch for entries
-- Time-of-day considerations
-- Risk management focus areas
+## Actionable Trading Plan
+- Specific price levels to watch for entries
+- Which direction has better probability based on confluence
+- Key times to watch for momentum (9:45-10:30, 1:00-3:45)
+- Clear invalidation levels (where setup breaks)
 
 ## Output Format
 Return a JSON object with this structure:
 ```json
 {
     "date": "YYYY-MM-DD",
-    "market_bias": "BULLISH/BEARISH/NEUTRAL",
-    "summary": "2-3 sentence market summary",
+    "ticker": "SYMBOL",
+    "current_setup": "BULLISH/BEARISH/NEUTRAL",
+    "summary": "Ticker-specific analysis based on morning prep levels",
     "key_levels": {
-        "SPY": {"support": [xxx.xx], "resistance": [xxx.xx]},
-        "QQQ": {"support": [xxx.xx], "resistance": [xxx.xx]}
+        "entry_long": xxx.xx,
+        "entry_short": xxx.xx,
+        "stop_loss_long": xxx.xx,
+        "stop_loss_short": xxx.xx,
+        "resistance": xxx.xx,
+        "support": xxx.xx
     },
-    "risk_factors": ["factor1", "factor2"],
-    "opportunities": ["opportunity1", "opportunity2"],
-    "time_of_day_notes": "When to be most/least active",
+    "confirmation_status": "How many of 8 confirmations currently align",
+    "best_direction": "CALLS/PUTS based on confluence",
+    "risk_factors": ["Specific risks for this ticker"],
+    "key_times": ["When to watch for momentum in this ticker"],
     "confidence_level": 1-10
 }
 ```
@@ -83,44 +87,54 @@ def get_pre_market_dynamic_prompt(
     user_context: str = ""
 ) -> str:
     """
-    Generate the dynamic portion of the pre-market prompt
+    Generate ticker-specific pre-market analysis prompt
 
     Args:
         date: Trading date (YYYY-MM-DD)
-        market_data: Dict with current market conditions
+        market_data: Dict with ticker-specific data from morning prep
         news_events: List of relevant news events
-        user_context: Additional user-specific context
+        user_context: Additional context
 
     Returns:
-        Dynamic prompt content (not cached)
+        Dynamic prompt content focused on specific ticker
     """
 
-    prompt_parts = [f"Generate pre-market briefing for {date}."]
+    ticker = market_data.get('ticker', 'SPY')
+    levels = market_data.get('levels', {})
+    bias = market_data.get('bias', 'NEUTRAL')
+    vix = market_data.get('vix', 15.5)
 
-    if market_data:
-        prompt_parts.append("\nCURRENT MARKET DATA:")
-        if 'futures' in market_data:
-            prompt_parts.append(f"ES Futures: {market_data['futures'].get('ES', 'N/A')}")
-            prompt_parts.append(f"NQ Futures: {market_data['futures'].get('NQ', 'N/A')}")
+    prompt_parts = [f"Generate ticker-specific pre-market analysis for {ticker} on {date}."]
 
-        if 'spy' in market_data:
-            spy_data = market_data['spy']
-            prompt_parts.append(f"SPY Pre-market: ${spy_data.get('price', 'N/A')}")
-            prompt_parts.append(f"SPY Prior Day: High ${spy_data.get('pdh', 'N/A')}, Low ${spy_data.get('pdl', 'N/A')}, Close ${spy_data.get('pdc', 'N/A')}")
+    # Add ticker-specific levels
+    prompt_parts.append(f"\n{ticker} MORNING PREP LEVELS:")
+    prompt_parts.append(f"Prior Day High (PDH): ${levels.get('pdh', 0):.2f}")
+    prompt_parts.append(f"Prior Day Low (PDL): ${levels.get('pdl', 0):.2f}")
+    prompt_parts.append(f"Prior Day Close (PDC): ${levels.get('pdc', 0):.2f}")
+    prompt_parts.append(f"VWAP: ${levels.get('vwap', 0):.2f}")
 
-        if 'vix' in market_data:
-            prompt_parts.append(f"VIX: {market_data['vix']}")
+    # Market context
+    prompt_parts.append(f"\nMARKET CONTEXT:")
+    prompt_parts.append(f"SPY Bias: {bias}")
+    prompt_parts.append(f"VIX Level: {vix}")
+
+    # Focus areas
+    prompt_parts.append(f"\nFOCUS AREAS:")
+    prompt_parts.append(f"1. Where is {ticker} relative to PDC (${levels.get('pdc', 0):.2f})?")
+    prompt_parts.append(f"2. What price levels trigger 8-confirmation alignment for {ticker}?")
+    prompt_parts.append(f"3. Key support/resistance levels for {ticker} entries?")
+    prompt_parts.append(f"4. How does SPY {bias} bias affect {ticker} specifically?")
 
     if news_events:
-        prompt_parts.append(f"\nTODAY'S NEWS EVENTS:")
-        for event in news_events[:5]:  # Limit to top 5 events
+        prompt_parts.append(f"\nRELEVANT EVENTS:")
+        for event in news_events[:3]:
             prompt_parts.append(f"- {event}")
 
     if user_context:
         prompt_parts.append(f"\nADDITIONAL CONTEXT:")
         prompt_parts.append(user_context)
 
-    prompt_parts.append(f"\nAnalyze conditions and provide the briefing JSON for {date}.")
+    prompt_parts.append(f"\nProvide actionable {ticker}-specific analysis in JSON format.")
 
     return "\n".join(prompt_parts)
 

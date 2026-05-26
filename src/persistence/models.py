@@ -42,6 +42,7 @@ class Violation:
 @dataclass
 class PreMarketChecklist:
     trade_date: str           # YYYY-MM-DD
+    ticker: str = "SPY"       # Primary ticker being traded
     pdh: Optional[float] = None
     pdl: Optional[float] = None
     pdc: Optional[float] = None
